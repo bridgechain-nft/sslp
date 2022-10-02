@@ -19,7 +19,7 @@ Make sure the env file has these items:
 ```
 CORE_WEBHOOKS_ENABLED=true
 CORE_WEBHOOKS_HOST=0.0.0.0
-CORE_WEBHOOKS_PORT=6104
+CORE_WEBHOOKS_PORT=6004
 ```
 
 Go back to user root directory and restart solar nodes to enable your new .env settings

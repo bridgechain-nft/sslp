@@ -12,7 +12,7 @@ api_port = 8001
 
 seed_node = 'https://sxp.mainnet.sh/api'
 api_node = 'http://127.0.0.1:6003/api/v2'
-webhook_node = 'http://127.0.0.1:6104/api'
+webhook_node = 'http://127.0.0.1:6004/api'
 sslp_webhook = 'http://127.0.0.1/api/newblocknotify'
 qae_webhook = 'http://127.0.0.1/api/newblocknotify'
 
