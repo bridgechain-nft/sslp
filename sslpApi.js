@@ -1840,7 +1840,7 @@ function initialize() {
         // Defaults
         validatePeer('65.108.95.18', 8001); //sslp
         validatePeer('142.132.249.133', 8001); //sslp2
-        //validatePeer('65.108.95.18', 8001); //sslp3
+        validatePeer('65.108.65.108', 8001); //sslp3
         //validatePeer('65.108.95.18', 8001); //sslp4
 
 
