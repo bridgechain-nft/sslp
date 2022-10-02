@@ -32,10 +32,10 @@ var iniconfig = ini.parse(fs.readFileSync('sslp.ini', 'utf-8'))
 const mongoconnecturl = iniconfig.mongo_connection_string;
 const mongodatabase = iniconfig.mongo_database;
 
-
 // MongoDB Library and Connection
 const sslpDB = require("./lib/sslpDB");
 const qdbapi = new sslpDB.default(mongoconnecturl, mongodatabase);
+
 // Mongo Connect
 
 connectDb();
@@ -1838,10 +1838,10 @@ function initialize() {
         getSeedPeers();
 
         // Defaults
-        validatePeer('95.217.184.222', 8001); //sslp
-        validatePeer('135.181.151.134', 8001); //sslp2
-        //validatePeer('95.217.12.172', 8001); //sslp3
-        //validatePeer('95.216.171.167', 8001); //sslp4
+        validatePeer('65.108.95.18', 8001); //sslp
+        validatePeer('65.108.95.18', 8001); //sslp2
+        //validatePeer('65.108.95.18', 8001); //sslp3
+        //validatePeer('65.108.95.18', 8001); //sslp4
 
 
     })();
