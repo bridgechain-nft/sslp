@@ -16,7 +16,7 @@ const ini = require('ini'); // so we can parse the ini files properties
 const Big = require('big.js'); // required unless you want floating point math issues
 const nodemailer = require('nodemailer'); // for sending error reports about this node
 const crypto = require('crypto'); // for creating hashes of things
-const SparkMD5 = require('spark-md5'); // Faster than crypto for md5
+//const SparkMD5 = require('spark-md5'); // Faster than crypto for md5
 const asyncv3 = require('async'); // Async Helper
 
 //const { Client } = require('pg'); // Postgres
