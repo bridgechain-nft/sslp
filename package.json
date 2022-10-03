@@ -8,6 +8,7 @@
         "url": "git+https://github.com/bridgechain-nft/sslp.git"
     },
     "dependencies": {
+        "@alessiodf/wsapi-client": "0.0.1",
         "@solar-network/crypto": "^4.0.2",
         "assert": "^2.0.0",
         "async": "^3.1.0",

@@ -10,6 +10,8 @@ redis_host = '127.0.0.1'
 
 api_port = 8001
 
+ws_client = 'wss://sslp.delegate-nft.com/ws'
+
 seed_node = 'https://sxp.mainnet.sh/api'
 api_node = 'http://127.0.0.1:6003/api'
 webhook_node = 'http://127.0.0.1:6004/api'

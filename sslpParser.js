@@ -18,7 +18,10 @@ const nodemailer = require('nodemailer'); // for sending error reports about thi
 const crypto = require('crypto'); // for creating hashes of things
 const SparkMD5 = require('spark-md5'); // Faster than crypto for md5
 const asyncv3 = require('async'); // Async Helper
-const { Client } = require('pg'); // Postgres
+
+//const { Client } = require('pg'); // Postgres
+const { Client } = require("@alessiodf/wsapi-client");
+
 const { Identities: SolarIdentities } = require("@solar-network/crypto");
 
 const { onShutdown } = require('node-graceful-shutdown');
@@ -30,15 +33,20 @@ var safetoshutdown = false;
 onShutdown("parser", async function() {
 
     shuttingdown = true;
+    let counter = 0;
 
     return new Promise((resolve, reject) => {
 
         var shutdowncheck = setInterval(function() {
+        
+        	counter++;
 
             console.log('Checking if shutdown is safe... ' + safetoshutdown.toString());
             if (safetoshutdown == true) {
                 resolve(true);
             }
+            
+            if (counter > 100) resolve(true);
 
         }, 1000);
 
@@ -47,6 +55,9 @@ onShutdown("parser", async function() {
 });
 
 var iniconfig = ini.parse(fs.readFileSync('sslp.ini', 'utf-8'))
+
+// WS Connection
+const wsClient = new Client(iniconfig.ws_client);
 
 // Mongo Connection Details
 const mongoconnecturl = iniconfig.mongo_connection_string;
@@ -64,7 +75,7 @@ const sslp = new SSLPSchema.default();
 // Declaring some variable defaults
 
 const SSLPactivationHeight = 2031200;
-const SSLPactivationBlockId = '59a86d78b369c3cbc914101d4f940ad2004d6b1c4e716dc9e67004311b3a07a3';
+const SSLPactivationBlockId = 'fbac47fc191a06e6b280fd2589298cbb623b88d9cdcd1866c6ea227dd559ed2c';
 
 var scanBlockId = 0;
 var lastBlockId = '';
@@ -88,6 +99,8 @@ dorun();
 function dorun() {
 
     (async() => {
+    
+    	await wsClient.connect();
 
         // Connect to Redis and setup some async call definitions
         // Primary redis connection for get, set, del
@@ -270,18 +283,27 @@ function downloadChain() {
 
         } else {
 
+			/* old pgsql
+			
             var pgclient = new Client({ user: iniconfig.pg_username, database: iniconfig.pg_database, password: iniconfig.pg_password });
             await pgclient.connect()
             var message = await pgclient.query('SELECT * FROM blocks ORDER BY height DESC LIMIT 1')
             await pgclient.end()
 
+			*/
+			
+			
+			
+			let blockInfo = await wsClient.get("blocks?limit=1");
+
+console.log(blockInfo);
 
             var topHeight = 0;
-            if (message && message.rows && message.rows[0].height) {
-                var topHeight = message.rows[0].height;
-                lastBlockId = message.rows[0].id;
+            if (blockInfo && blockInfo.data && blockInfo.data[0].height) {
+                var topHeight = blockInfo.data[0].height;
+                lastBlockId = blockInfo.data[0].id;
             }
-
+            
             console.log('Current Block Height: #' + topHeight + '.....');
 
         }
@@ -484,25 +506,41 @@ function doScan() {
 
         var currentHeight = 0;
 
+		/*
         var pgclient = new Client({ user: iniconfig.pg_username, database: iniconfig.pg_database, password: iniconfig.pg_password });
         await pgclient.connect()
         var message = await pgclient.query('SELECT * FROM blocks ORDER BY height DESC LIMIT 1');
+        */
+        
+		let blockInfo = await wsClient.get("blocks?limit=1");
+        
+        if (blockInfo && blockInfo.data && blockInfo.data.length > 0) 
+        {
+        
+        	currentHeight = parseInt(blockInfo.data[0].height);
 
-        if (message && message.rows) currentHeight = parseInt(message.rows[0].height);
+        	console.log('New SSLP Block Height: #' + currentHeight);
 
-        console.log('New SSLP Block Height: #' + currentHeight);
+			var mclient = await qdb.connect();
+			qdb.setClient(mclient);
 
-        var mclient = await qdb.connect();
-        qdb.setClient(mclient);
-
-        await whilstScanBlocks(scanBlockId, currentHeight, pgclient, qdb);
+			await whilstScanBlocks(scanBlockId, currentHeight, wsClient, qdb);
+			
+		}
+		else
+		{
+		
+			console.log('Unable to get last block information..');
+			process.exit(-1);
+		
+		}
 
     })();
 
 }
 
 
-async function whilstScanBlocks(count, max, pgclient, qdb) {
+async function whilstScanBlocks(count, max, wsClient, qdb) {
 
     return new Promise((resolve) => {
 
@@ -524,25 +562,29 @@ async function whilstScanBlocks(count, max, pgclient, qdb) {
 
                         if (count % 1000 == 0 || count == max) console.log("Next scan from Height: #" + count);
 
-                        var message = await pgclient.query('SELECT id, number_of_transactions, height, previous_block FROM blocks WHERE height = $1 LIMIT 1', [count]);
+                        //var message = await pgclient.query('SELECT id, number_of_transactions, height, previous_block FROM blocks WHERE height = $1 LIMIT 1', [count]);
 
-                        if (message && message.rows) {
+						let message = await wsClient.get("blocks?height=" + count);
 
-                            var blockdata = message.rows[0];
+                        if (message && message.data) {
 
+                            let blockdata = message.data[0];
+                            
                             if (blockdata && blockdata.id) {
 
-                                var blockidcode = blockdata.id;
-                                var blocktranscount = blockdata.number_of_transactions;
-                                var thisblockheight = blockdata.height;
+                                let blockidcode = blockdata.id;
+                                let blocktranscount = blockdata.transactions;
+                                let thisblockheight = blockdata.height;
+                                let previousblockid = blockdata.previous;
 
-                                var previousblockid = blockdata.previous_block;
+
+//console.log(blockdata);
 
                                 if (lastBlockId != previousblockid && thisblockheight > 1) {
 
                                     // New code attempts a rollback
 
-                                    var rollbackHeight = thisblockheight - 5;
+                                    let rollbackHeight = thisblockheight - 5;
                                     if (rollbackHeight < 0) {
 
                                         console.log('Error:	 Last Block ID is incorrect!  Rescan Required!');
@@ -573,101 +615,99 @@ async function whilstScanBlocks(count, max, pgclient, qdb) {
                                 } else {
 
                                     lastBlockId = blockidcode;
-
                                     processedItems = false;
-
+                                    
                                     if (parseInt(blocktranscount) > 0 && thisblockheight >= SSLPactivationHeight) {
 
-                                        var tresponse = await pgclient.query('SELECT * FROM transactions WHERE block_id = $1 ORDER BY sequence ASC', [blockidcode]);
+                                        //var tresponse = await pgclient.query('SELECT * FROM transactions WHERE block_id = $1 ORDER BY sequence ASC', [blockidcode]);
+                                        
+										let tresponse = await wsClient.get("blocks/" + blockidcode + "/transactions");
 
-                                        if (tresponse && tresponse.rows) {
+                                        if (tresponse && tresponse.data) {
 
-                                            for (let ti = 0; ti < tresponse.rows.length; ti++) {
+                                            for (let ti = 0; ti < tresponse.data.length; ti++) {
 
-                                                var origtxdata = tresponse.rows[ti];
+                                                let origtxdata = tresponse.data[ti];
+                                                
+                                                if (origtxdata.asset && origtxdata.asset.transfers && origtxdata.asset.transfers.length > 0 && origtxdata.memo && origtxdata.memo != '')
+                                                {
 
-                                                var epochdate = new Date(Date.parse('2022-03-28 00:00:00'));
-                                                var unixepochtime = Math.round(epochdate.getTime() / 1000);
+													let txdata = {};
+													txdata.id = origtxdata.id
+													txdata.blockId = origtxdata.blockId;
+													txdata.version = origtxdata.version;
+													txdata.type = origtxdata.type;
+													txdata.amount = origtxdata.asset.transfers[0].amount;
+													txdata.fee = origtxdata.fee;
+													txdata.sender = SolarIdentities.Address.fromPublicKey(origtxdata.senderPublicKey);
+													txdata.senderPublicKey = origtxdata.senderPublicKey;
+													txdata.recipient = origtxdata.asset.transfers[0].recipientId;
+													if (origtxdata.memo != null && origtxdata.memo != '') {
+														try {
+															txdata.memo = origtxdata.memo;
+														} catch (e) {
+															txdata.memo = null;
+														}
+													} else {
+														txdata.memo = null;
+													}
+													txdata.confirmations = origtxdata.confirmations; // parseInt(max) - parseInt(thisblockheight);
+													txdata.timestamp = blockdata.timestamp;
+													
+//console.log(origtxdata);
 
-                                                var unixtimestamp = parseInt(origtxdata.timestamp) + unixepochtime;
-                                                var humantimestamp = new Date(unixtimestamp * 1000).toISOString();
+													var isjson = false;
 
-                                                var txdata = {};
-                                                txdata.id = origtxdata.id
-                                                txdata.blockId = origtxdata.block_id;
-                                                txdata.version = origtxdata.version;
-                                                txdata.type = origtxdata.type;
-                                                txdata.amount = origtxdata.asset.transfers[0].amount;
-                                                txdata.fee = origtxdata.fee;
-                                                txdata.sender = SolarIdentities.Address.fromPublicKey(origtxdata.sender_public_key);
-                                                txdata.senderPublicKey = origtxdata.sender_public_key;
-                                                txdata.recipient = origtxdata.asset.transfers[0].recipientId
-                                                if (origtxdata.memo != null && origtxdata.memo != '') {
-                                                    try {
-                                                        txdata.memo = origtxdata.memo.toString(); //hex_to_ascii(origtxdata.memo);
-                                                    } catch (e) {
-                                                        txdata.memo = null;
-                                                    }
-                                                } else {
-                                                    txdata.memo = null;
-                                                }
-                                                txdata.confirmations = parseInt(max) - parseInt(thisblockheight);
-                                                txdata.timestamp = { epoch: origtxdata.timestamp, unix: unixtimestamp, human: humantimestamp };
+													try {
+														JSON.parse(txdata.memo);
+														isjson = true;
+													} catch (e) {
+														//console.log("memo is not JSON");
+													}
 
-                                                if (txdata.memo && txdata.memo != '') {
+													if (isjson === true) {
 
-                                                    var isjson = false;
+														var parsejson = JSON.parse(txdata.memo);
 
-                                                    try {
-                                                        JSON.parse(txdata.memo);
-                                                        isjson = true;
-                                                    } catch (e) {
-                                                        //console.log("memo is not JSON");
-                                                    }
+														if (parsejson.sslp1) {
 
-                                                    if (isjson === true) {
+															console.log(txdata);
 
-                                                        var parsejson = JSON.parse(txdata.memo);
+															var txmessage = await qdb.findDocuments('transactions', { "txid": txdata.id });
+															if (txmessage.length == 0) {
+																try {
+																	var SSLPresult = await sslp.parseTransaction(txdata, blockdata, qdb);
+																} catch (e) {
+																	error_handle(e, 'parseTransaction', 'error');
+																}
+																processedItems = true;
+															} else {
+																console.log('ERROR:	 We already have TXID: ' + txdata.id);
+															}
 
-                                                        if (parsejson.sslp1) {
+														} else if (parsejson.sslp2) {
 
-                                                            console.log(txdata);
+															console.log(txdata);
 
-                                                            var txmessage = await qdb.findDocuments('transactions', { "txid": txdata.id });
-                                                            if (txmessage.length == 0) {
-                                                                try {
-                                                                    var SSLPresult = await sslp.parseTransaction(txdata, blockdata, qdb);
-                                                                } catch (e) {
-                                                                    error_handle(e, 'parseTransaction', 'error');
-                                                                }
-                                                                processedItems = true;
-                                                            } else {
-                                                                console.log('ERROR:	 We already have TXID: ' + txdata.id);
-                                                            }
+															var txmessage = await qdb.findDocuments('metadata', { "txid": txdata.id });
+															if (txmessage.length == 0) {
+																try {
+																	var SSLPresult = await sslp.parseTransaction(txdata, blockdata, qdb);
+																} catch (e) {
+																	error_handle(e, 'parseTransaction', 'error');
+																}
+																processedItems = true;
+															} else {
+																console.log('ERROR:	 We already have TXID: ' + txdata.id);
+															}
 
-                                                        } else if (parsejson.sslp2) {
+														}
 
-                                                            console.log(txdata);
+													}
 
-                                                            var txmessage = await qdb.findDocuments('metadata', { "txid": txdata.id });
-                                                            if (txmessage.length == 0) {
-                                                                try {
-                                                                    var SSLPresult = await sslp.parseTransaction(txdata, blockdata, qdb);
-                                                                } catch (e) {
-                                                                    error_handle(e, 'parseTransaction', 'error');
-                                                                }
-                                                                processedItems = true;
-                                                            } else {
-                                                                console.log('ERROR:	 We already have TXID: ' + txdata.id);
-                                                            }
+										
 
-                                                        }
-
-                                                    }
-
-                                                }
-
-
+												}
 
                                             }
 
@@ -731,7 +771,7 @@ async function whilstScanBlocks(count, max, pgclient, qdb) {
                 (async() => {
 
                     await qdb.close();
-                    await pgclient.end()
+                    //await pgclient.end()
 
                     scanLock = false;
                     scanLockTimer = 0;
