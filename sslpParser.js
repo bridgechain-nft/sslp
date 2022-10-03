@@ -22,8 +22,8 @@ const asyncv3 = require('async'); // Async Helper
 //const { Client } = require('pg'); // Postgres
 const { Client } = require("@alessiodf/wsapi-client");
 
-const { Identities: SolarIdentities } = require("@solar-network/crypto");
-
+const { Transactions: SolarTransactions, Managers: SolarManagers, Utils: SolarUtils, Identities: SolarIdentities } = require("@solar-network/crypto");
+SolarManagers.configManager.setFromPreset("mainnet");
 const { onShutdown } = require('node-graceful-shutdown');
 
 var shuttingdown = false;
