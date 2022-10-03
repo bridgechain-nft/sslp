@@ -602,9 +602,9 @@ async function whilstScanBlocks(count, max, pgclient, qdb) {
                                                 txdata.sender = SolarIdentities.Address.fromPublicKey(origtxdata.sender_public_key);
                                                 txdata.senderPublicKey = origtxdata.sender_public_key;
                                                 txdata.recipient = origtxdata.recipient_id
-                                                if (origtxdata.vendor_field != null && origtxdata.vendor_field != '') {
+                                                if (origtxdata.memo != null && origtxdata.memo != '') {
                                                     try {
-                                                        txdata.memo = origtxdata.vendor_field.toString(); //hex_to_ascii(origtxdata.vendor_field);
+                                                        txdata.memo = origtxdata.memo.toString(); //hex_to_ascii(origtxdata.memo);
                                                     } catch (e) {
                                                         txdata.memo = null;
                                                     }
