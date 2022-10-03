@@ -597,11 +597,11 @@ async function whilstScanBlocks(count, max, pgclient, qdb) {
                                                 txdata.blockId = origtxdata.block_id;
                                                 txdata.version = origtxdata.version;
                                                 txdata.type = origtxdata.type;
-                                                txdata.amount = origtxdata.amount;
+                                                txdata.amount = origtxdata.asset.transfers[0].amount;
                                                 txdata.fee = origtxdata.fee;
                                                 txdata.sender = SolarIdentities.Address.fromPublicKey(origtxdata.sender_public_key);
                                                 txdata.senderPublicKey = origtxdata.sender_public_key;
-                                                txdata.recipient = origtxdata.recipient_id
+                                                txdata.recipient = origtxdata.asset.transfers[0].recipientId
                                                 if (origtxdata.memo != null && origtxdata.memo != '') {
                                                     try {
                                                         txdata.memo = origtxdata.memo.toString(); //hex_to_ascii(origtxdata.memo);
